@@ -390,6 +390,7 @@ gen_secrets() {
 TELEMT_API_AUTH="Bearer ${api_secret}"
 PANEL_JWT_SECRET="${jwt_secret}"
 TELEMT_USER_SECRET="${user_secret}"
+TELEMT_VERSION="${TELEMT_VERSION:-latest}"
 ENVEOF
   chmod 600 "$BASE_DIR/.env"
   log_info "Секреты сгенерированы → $BASE_DIR/.env"
@@ -420,6 +421,13 @@ fix_env_format() {
   if grep -qE '^[A-Z_]+=[^"].* ' "$envfile"; then
     log_info "Миграция .env — добавляю кавычки..."
     sed -i -E 's/^([A-Z_]+)=([^"].*)$/\1="\2"/' "$envfile"
+  fi
+
+  # Обновляем/добавляем TELEMT_VERSION при каждом запуске
+  if grep -q '^TELEMT_VERSION=' "$envfile"; then
+    sed -i "s|^TELEMT_VERSION=.*|TELEMT_VERSION=\"${TELEMT_VERSION:-latest}\"|" "$envfile"
+  else
+    echo "TELEMT_VERSION=\"${TELEMT_VERSION:-latest}\"" >> "$envfile"
   fi
 }
 
@@ -551,7 +559,10 @@ services:
       - internal
 
   # ─── Telemt ──────────────────────────────────────────────────────────────
-  # MTProxy сервер (Rust).
+  # MTProxy сервер (Rust). Бинарник скачивается из GitHub Releases.
+  # target: debug — debian-slim с отладочными утилитами, работает от root
+  #   (prod = distroless + nonroot, не может писать конфиг).
+  # TELEMT_VERSION — версия для скачивания бинарника (latest = последний релиз).
   # working_dir = /run/telemt — telemt ищет config.toml в CWD.
   # telemt-data монтируется как директория (НЕ отдельный файл!) —
   # telemt делает атомарную запись (temp + rename), это требует одной FS.
@@ -559,6 +570,9 @@ services:
   telemt:
     build:
       context: ./telemt
+      target: debug
+      args:
+        - TELEMT_VERSION=${TELEMT_VERSION:-latest}
     container_name: telemt
     restart: unless-stopped
     security_opt:
@@ -600,8 +614,9 @@ services:
     expose:
       - "8080"
     volumes:
-      - ./telemt-panel-config/config.toml:/etc/telemt-panel/config.toml:ro
+      - ./telemt-panel-config:/etc/telemt-panel:ro
       - ./telemt-data:/etc/telemt:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 ${panel_geoip_volumes}
     networks:
       - internal
@@ -768,7 +783,7 @@ apply_telemt_settings() {
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  КОНФИГ TELEMT-PANEL                                                        ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
-# Основан на config.example.toml v0.4.0.
+# Основан на config.example.toml v0.4.5.
 #
 # Docker-режим: url = "http://telemt:9091" (Docker DNS, не localhost).
 # TLS: не используется (Traefik делает SSL termination).
@@ -822,6 +837,12 @@ asn_db_path = \"/var/lib/telemt-panel/geoip/GeoLite2-ASN.mmdb\""
 # asn_db_path = "/var/lib/telemt-panel/geoip/GeoLite2-ASN.mmdb"'
   fi
 
+  # Защита: Docker мог создать config.toml как директорию (volume mount)
+  if [ -d "$panel_cfg_dir/config.toml" ]; then
+    log_warn "config.toml — директория (создана Docker). Удаляю…"
+    rm -rf "$panel_cfg_dir/config.toml"
+  fi
+
   cat > "$panel_cfg_dir/config.toml" <<PANELEOF
 # Telemt Panel Configuration
 # Сгенерировано install.sh v3.0.0 — $(date +%Y-%m-%d)
@@ -838,6 +859,8 @@ auth_header = "${TELEMT_API_AUTH}"
 config_path = "/etc/telemt/config.toml"
 # GitHub репозиторий для проверки обновлений
 github_repo = "telemt/telemt"
+# Имя Docker-контейнера Telemt (для чтения логов через docker API вместо journalctl)
+container_name = "telemt"
 
 [panel]
 github_repo = "amirotin/telemt_panel"
