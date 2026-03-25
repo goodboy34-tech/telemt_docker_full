@@ -1,0 +1,1 @@
+# telemt_docker_full
