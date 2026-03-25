@@ -46,10 +46,10 @@ PANEL_VERSION=""
 # ║  НАСТРОЙКИ — ИЗМЕНИТЕ ПОД СВОЙ СЕРВЕР                                      ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
-MT_PROXY_DOMAIN="mtproxy1.ookcdn.ru"
-PANEL_DOMAIN="mtpanel1.ookcdn.ru"
-API_DOMAIN="mtapi1.ookcdn.ru"
-TLS_MASK_DOMAIN="www.google.com"        # Домен для TLS-маскировки (должен быть ЧУЖОЙ популярный сайт!)
+MT_PROXY_DOMAIN="mtproxy.vpnkeys.ru"
+PANEL_DOMAIN="mtpanel.vpnkeys.ru"
+API_DOMAIN="mtapi.vpnkeys.ru"
+TLS_MASK_DOMAIN="mtproxy.vpnkeys.ru"        # Домен для TLS-маскировки (должен быть ЧУЖОЙ популярный сайт!)
 LE_EMAIL="kefir7676@gmail.com"             # Email для Let's Encrypt
 
 # Порты (наружу через HAProxy)
